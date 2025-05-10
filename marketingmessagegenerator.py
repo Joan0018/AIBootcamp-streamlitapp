@@ -1,9 +1,7 @@
 import streamlit as st
 import openai
 
-from google.colab import userdata
-my_key = st.secret["OpenAIKey"]
-openai.api_key = my_key
+openai.api_key = st.secret["OpenAIKey"]
 
 
 
