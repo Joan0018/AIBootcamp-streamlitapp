@@ -20,7 +20,7 @@ df = load_data()
 
 # Function to get embedding using OpenAI
 def get_embedding(text, model="text-embedding-ada-002"):
-    response = openai.embeddings.create(input=[text], model=model)
+    response = openai.Embedding.create(input=[text], model=model)
     return np.array(response.data[0].embedding)
 
 # Streamlit App UI
