@@ -1,63 +1,63 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import openai
 from sklearn.metrics.pairwise import cosine_similarity
-from sentence_transformers import SentenceTransformer
 import ast
 
-# Load model
-@st.cache_resource
-def load_model():
-    return SentenceTransformer('all-MiniLM-L6-v2')  # Light and efficient
-
-model = load_model()
+# Set your OpenAI API key securely
+openai.api_key = st.secrets["openai_key"]
 
 # Load dataset
 @st.cache_data
 def load_data():
     df = pd.read_csv("csv/qa_dataset_with_embeddings.csv")
-    # Convert the stringified embedding to a real list
-    df['Embedding'] = df['Question_Embedding'].apply(lambda x: np.array(ast.literal_eval(x)))
+    df["Question_Embedding"] = df["Question_Embedding"].apply(ast.literal_eval)
+    df["Question_Embedding"] = df["Question_Embedding"].apply(np.array)
     return df
 
 df = load_data()
 
-# Streamlit UI
-st.title("💬 Health Q&A Chat (Heart, Lung, and Blood Topics)")
+# Function to get embedding using OpenAI
+def get_embedding(text, model="text-embedding-ada-002"):
+    response = openai.embeddings.create(input=[text], model=model)
+    return np.array(response.data[0].embedding)
+
+# Streamlit App UI
+st.title("Heart, Lung, and Blood Q&A Bot 💬")
 st.write("Ask any question related to heart, lung, or blood health.")
 
-user_question = st.text_input("Enter your health question:")
-submit = st.button("Get Answer")
-clear = st.button("Clear")
+user_question = st.text_input("Enter your question:")
 
-if clear:
+col1, col2 = st.columns(2)
+search_clicked = col1.button("Search Answer")
+clear_clicked = col2.button("Clear")
+
+if clear_clicked:
     st.experimental_rerun()
 
-if submit and user_question.strip():
-    # Step 1: Embed the user's question
-    user_embedding = model.encode([user_question])[0]
+if search_clicked and user_question.strip() != "":
+    with st.spinner("Searching for the best answer..."):
+        try:
+            user_embedding = get_embedding(user_question)
+            similarities = cosine_similarity([user_embedding], list(df["Question_Embedding"]))[0]
+            top_index = np.argmax(similarities)
+            top_score = similarities[top_index]
 
-    # Step 2: Compute cosine similarity
-    similarities = cosine_similarity([user_embedding], df['Embedding'].tolist())[0]
+            if top_score > 0.80:
+                st.success("Answer found:")
+                st.markdown(f"**Q:** {df.iloc[top_index]['Question']}")
+                st.markdown(f"**A:** {df.iloc[top_index]['Answer']}")
+                st.markdown(f"**Similarity Score:** `{top_score:.4f}`")
+            else:
+                st.warning("I apologize, but I don't have information on that topic yet. Could you please ask other questions?")
+        except Exception as e:
+            st.error(f"Error: {e}")
+elif search_clicked:
+    st.warning("Please enter a valid question.")
 
-    # Step 3: Find the best match
-    best_idx = np.argmax(similarities)
-    best_score = similarities[best_idx]
-    threshold = 0.75  # Tune this as needed
-
-    if best_score >= threshold:
-        st.success("✅ Best Match Found:")
-        st.markdown(f"**Question:** {df.iloc[best_idx]['Question']}")
-        st.markdown(f"**Answer:** {df.iloc[best_idx]['Answer']}")
-        st.caption(f"Similarity Score: {best_score:.2f}")
-        
-        # Optional: Rating
-        with st.expander("Rate this answer"):
-            rating = st.radio("Was this helpful?", ["👍 Yes", "👎 No"], horizontal=True)
-            st.write("Thank you for your feedback!" if rating else "")
-    else:
-        st.warning("I apologize, but I don't have information on that topic yet. Could you please ask other questions?")
-
-# Optional: Display common FAQs
-with st.expander("📚 Browse Common Questions"):
-    st.write(df[['Question']].head(10).to_markdown(index=False))
+# Optional: Display FAQs
+with st.expander("📋 Common FAQs"):
+    for i in range(min(5, len(df))):
+        st.markdown(f"**Q:** {df.iloc[i]['Question']}")
+        st.markdown(f"**A:** {df.iloc[i]['Answer']}")
