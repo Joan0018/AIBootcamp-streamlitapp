@@ -2,8 +2,10 @@ import streamlit as st
 import openai
 
 from google.colab import userdata
-my_key = userdata.get('OpenAIKey')
+my_key = st.secret["OpenAIKey"]
 openai.api_key = my_key
+
+
 
 # Define neutral product features, benefits, pain points, and desires
 product_features = ["Voice control", "Touch screen interface", "Smart inventory management", "Recipe suggestions"]
